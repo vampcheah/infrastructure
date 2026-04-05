@@ -1,0 +1,346 @@
+services:
+
+  # ==============================================================
+  # DATABASES
+  # ==============================================================
+
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: infra-postgres
+    restart: unless-stopped
+    shm_size: '256mb'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - infra_postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d:ro
+    command: >
+      postgres
+        -c shared_preload_libraries=timescaledb
+        -c timescaledb.max_background_workers=8
+        -c max_connections=${POSTGRES_MAX_CONNECTIONS:-200}
+        -c shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+        -c work_mem=${POSTGRES_WORK_MEM:-16MB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - infra_shared
+    profiles:
+      - postgres
+
+  redis:
+    image: redis:8-alpine
+    container_name: infra-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+    command: >
+      sh -c "
+        if [ x$$REDIS_PASSWORD != x ]; then
+          redis-server --appendonly yes --appendfsync everysec --maxmemory $${REDIS_MAXMEMORY:-512mb} --maxmemory-policy $${REDIS_MAXMEMORY_POLICY:-noeviction} --requirepass $$REDIS_PASSWORD
+        else
+          redis-server --appendonly yes --appendfsync everysec --maxmemory $${REDIS_MAXMEMORY:-512mb} --maxmemory-policy $${REDIS_MAXMEMORY_POLICY:-noeviction}
+        fi
+      "
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - infra_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - infra_shared
+    profiles:
+      - redis
+
+  mongodb:
+    image: mongo:8.0
+    container_name: infra-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin}
+    command: mongod --auth
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - infra_mongodb_data:/data/db
+      - infra_mongodb_config:/data/configdb
+      - ./init/mongo:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - infra_shared
+    profiles:
+      - mongodb
+
+  mysql:
+    image: mysql:8.0
+    container_name: infra-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - infra_mysql_data:/var/lib/mysql
+      - ./init/mysql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - infra_shared
+    profiles:
+      - mysql
+
+  # ==============================================================
+  # ADMIN TOOLS
+  # 用法: --profile admin 同时需指定对应数据库 profile
+  # 例如: --profile postgres --profile admin
+  # ==============================================================
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: infra-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@infra.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - infra_pgadmin_data:/var/lib/pgadmin
+    networks:
+      - infra_shared
+    profiles:
+      - admin
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: infra-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: infra-mysql
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 256M
+    ports:
+      - "${PHPMYADMIN_PORT:-5051}:80"
+    networks:
+      - infra_shared
+    profiles:
+      - admin
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: infra-mongo-express
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER:-admin}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASSWORD:-admin}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-admin}@infra-mongodb:27017/
+      ME_CONFIG_BASICAUTH: "false"
+    ports:
+      - "${MONGO_EXPRESS_PORT:-5052}:8081"
+    networks:
+      - infra_shared
+    profiles:
+      - admin
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: infra-redis-commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:infra-redis:6379:0${REDIS_PASSWORD:+:${REDIS_PASSWORD}}
+    ports:
+      - "${REDIS_COMMANDER_PORT:-5053}:8081"
+    networks:
+      - infra_shared
+    profiles:
+      - admin
+
+  # ==============================================================
+  # CONTAINER MANAGEMENT
+  # ==============================================================
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: infra-portainer
+    restart: unless-stopped
+    ports:
+      - "${PORTAINER_PORT:-9000}:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - infra_portainer_data:/data
+    networks:
+      - infra_shared
+    profiles:
+      - portainer
+
+  # ==============================================================
+  # MONITORING STACK
+  # ==============================================================
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: infra-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - infra_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - infra_shared
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: infra-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_PORT:-9091}
+    ports:
+      - "${GRAFANA_PORT:-9091}:3000"
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - infra_grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - infra_shared
+    profiles:
+      - monitoring
+
+  loki:
+    image: grafana/loki:latest
+    container_name: infra-loki
+    restart: unless-stopped
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./config/loki/loki.yml:/etc/loki/local-config.yaml:ro
+      - infra_loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - infra_shared
+    profiles:
+      - monitoring
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: infra-promtail
+    restart: unless-stopped
+    ports:
+      - "${PROMTAIL_PORT:-9080}:9080"
+    volumes:
+      - ./config/promtail/promtail.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - infra_shared
+    profiles:
+      - monitoring
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: infra-alertmanager
+    restart: unless-stopped
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - infra_alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - infra_shared
+    profiles:
+      - monitoring
+
+# ==============================================================
+# NETWORKS
+# ==============================================================
+networks:
+  infra_shared:
+    name: infra_shared
+    driver: bridge
+
+# ==============================================================
+# VOLUMES
+# ==============================================================
+volumes:
+  infra_postgres_data:
+  infra_redis_data:
+  infra_mongodb_data:
+  infra_mongodb_config:
+  infra_mysql_data:
+  infra_pgadmin_data:
+  infra_prometheus_data:
+  infra_grafana_data:
+  infra_loki_data:
+  infra_alertmanager_data:
+  infra_portainer_data:
