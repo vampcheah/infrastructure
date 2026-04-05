@@ -101,6 +101,9 @@ up-promtail:
 up-alertmanager:
 	$(COMPOSE) --profile monitoring up -d alertmanager
 
+up-portainer:
+	$(COMPOSE) --profile portainer up -d portainer
+
 down-postgres:
 	docker stop infra-postgres && docker rm infra-postgres
 
