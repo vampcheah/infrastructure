@@ -185,8 +185,8 @@ configure_docker() {
 
 gen_password() {
     # 生成 20 位随机字母数字密码
-    # 先读固定字节再过滤，避免 pipefail 下 tr 收到 SIGPIPE 导致脚本中断
-    head -c 120 /dev/urandom | LC_ALL=C tr -dc 'A-Za-z0-9' | head -c 20
+    # openssl 输出固定长度字符串，避免 pipefail 下出现 SIGPIPE
+    openssl rand -base64 30 | tr -dc 'A-Za-z0-9' | cut -c1-20
 }
 
 setup_project() {
