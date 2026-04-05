@@ -184,9 +184,8 @@ configure_docker() {
 }
 
 gen_password() {
-    # 生成 20 位随机字母数字密码
-    # openssl 输出固定长度字符串，避免 pipefail 下出现 SIGPIPE
-    openssl rand -base64 30 | tr -dc 'A-Za-z0-9' | cut -c1-20
+    # 生成 24 位随机十六进制密码，无管道避免 pipefail 下的 SIGPIPE 问题
+    openssl rand -hex 12
 }
 
 setup_project() {
