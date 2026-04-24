@@ -114,6 +114,29 @@ services:
     profiles:
       - mysql
 
+  minio:
+    image: minio/minio:latest
+    container_name: infra-minio
+    command: server /data --console-address ":9201"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "${MINIO_API_PORT:-9200}:9000"
+      - "${MINIO_CONSOLE_PORT:-9201}:9201"
+    volumes:
+      - infra_minio_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - infra_shared
+    profiles:
+      - minio
+
   # ==============================================================
   # ADMIN TOOLS
   # 用法: --profile admin 同时需指定对应数据库 profile
@@ -125,7 +148,7 @@ services:
     container_name: infra-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@infra.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
@@ -133,6 +156,8 @@ services:
       - "${PGADMIN_PORT:-5050}:80"
     volumes:
       - infra_pgadmin_data:/var/lib/pgadmin
+      - ./config/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./config/pgadmin/pgpass:/pgpass:ro
     networks:
       - infra_shared
     profiles:
@@ -183,6 +208,25 @@ services:
       - admin
 
   # ==============================================================
+  # REVERSE PROXY
+  # 用法: make up-caddy
+  # network_mode: host → 可直接访问宿主机 localhost（dev server 在宿主机跑）
+  # 首次启动 Caddy 会自动生成本地 CA 并安装到系统信任库（需要 sudo 密码）
+  # ==============================================================
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: infra-caddy
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - infra_caddy_data:/data
+      - infra_caddy_config:/config
+    profiles:
+      - caddy
+
+  # ==============================================================
   # CONTAINER MANAGEMENT
   # ==============================================================
 
@@ -201,125 +245,52 @@ services:
       - portainer
 
   # ==============================================================
-  # MONITORING STACK
+  # BACKUP STACK
+  # 用法: --profile backup
+  # ofelia 常驻 + smart-backup-db 常驻容器（sleep infinity），ofelia 通过 job-exec 定时触发 backup.sh
   # ==============================================================
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: infra-prometheus
+  ofelia:
+    image: mcuadros/ofelia:latest
+    container_name: infra-ofelia
     restart: unless-stopped
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
-    volumes:
-      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./config/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - infra_prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
-      - '--web.enable-lifecycle'
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    networks:
-      - infra_shared
-    profiles:
-      - monitoring
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: infra-grafana
-    restart: unless-stopped
+    command: daemon --docker
     environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: http://localhost:${GRAFANA_PORT:-9091}
-    ports:
-      - "${GRAFANA_PORT:-9091}:3000"
+      TZ: ${TZ:-Asia/Kuala_Lumpur}
     volumes:
-      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
-      - infra_grafana_data:/var/lib/grafana
-    depends_on:
-      prometheus:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    networks:
-      - infra_shared
-    profiles:
-      - monitoring
-
-  loki:
-    image: grafana/loki:latest
-    container_name: infra-loki
-    restart: unless-stopped
-    ports:
-      - "${LOKI_PORT:-3100}:3100"
-    volumes:
-      - ./config/loki/loki.yml:/etc/loki/local-config.yaml:ro
-      - infra_loki_data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    networks:
-      - infra_shared
-    profiles:
-      - monitoring
-
-  promtail:
-    image: grafana/promtail:latest
-    container_name: infra-promtail
-    restart: unless-stopped
-    ports:
-      - "${PROMTAIL_PORT:-9080}:9080"
-    volumes:
-      - ./config/promtail/promtail.yml:/etc/promtail/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    command: -config.file=/etc/promtail/config.yml
-    depends_on:
-      loki:
-        condition: service_healthy
     networks:
       - infra_shared
     profiles:
-      - monitoring
+      - backup
 
-  alertmanager:
-    image: prom/alertmanager:latest
-    container_name: infra-alertmanager
+  smart-backup-db:
+    build:
+      context: ./config/smart-backup-db
+    image: infra-smart-backup:latest
+    container_name: infra-smart-backup
     restart: unless-stopped
-    ports:
-      - "${ALERTMANAGER_PORT:-9093}:9093"
+    # 常驻睡眠；备份由 ofelia 通过 job-exec 触发 /opt/smart-backup-db/backup.sh
+    entrypoint: ["sleep", "infinity"]
     volumes:
-      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - infra_alertmanager_data:/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      - ./config/smart-backup-db/config.sh:/opt/smart-backup-db/config.sh:ro
+      - ./config/smart-backup-db/credentials/my.cnf:/root/.my.cnf:ro
+      - ./config/smart-backup-db/credentials/pgpass:/root/.pgpass:ro
+      - ./data/smart-backup-db/backups:/var/backups/db
+      - ./data/smart-backup-db/logs:/var/log/smart-backup-db
+      # DESTINATION=s3 时取消注释：
+      # - ~/.aws:/root/.aws:ro
+    environment:
+      TZ: ${TZ:-Asia/Kuala_Lumpur}
     networks:
       - infra_shared
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.smart-backup-db.schedule: "${BACKUP_CRON_SCHEDULE:-0 0 3 * * *}"
+      ofelia.job-exec.smart-backup-db.command: "/opt/smart-backup-db/backup.sh"
+      ofelia.job-exec.smart-backup-db.no-overlap: "true"
     profiles:
-      - monitoring
+      - backup
 
 # ==============================================================
 # NETWORKS
@@ -333,14 +304,13 @@ networks:
 # VOLUMES
 # ==============================================================
 volumes:
+  infra_minio_data:
   infra_postgres_data:
   infra_redis_data:
   infra_mongodb_data:
   infra_mongodb_config:
   infra_mysql_data:
   infra_pgadmin_data:
-  infra_prometheus_data:
-  infra_grafana_data:
-  infra_loki_data:
-  infra_alertmanager_data:
   infra_portainer_data:
+  infra_caddy_data:
+  infra_caddy_config:

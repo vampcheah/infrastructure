@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "infra-postgres",
+      "Group": "Servers",
+      "Host": "infra-postgres",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "postgres",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpass"
+    }
+  }
+}

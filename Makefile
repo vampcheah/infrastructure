@@ -1,12 +1,11 @@
 .PHONY: help install \
-        up-postgres up-redis up-mongodb up-mysql \
+        up-postgres up-redis up-mongodb up-mysql up-minio \
         up-pgadmin up-phpmyadmin up-mongo-express up-redis-commander \
-        up-prometheus up-grafana up-loki up-promtail up-alertmanager \
-        up-portainer \
-        down-postgres down-redis down-mongodb down-mysql \
+        up-portainer up-caddy caddy-trust caddy-reload \
+        up-backup backup-build backup-run backup-logs down-backup \
+        down-postgres down-redis down-mongodb down-mysql down-minio \
         down-pgadmin down-phpmyadmin down-mongo-express down-redis-commander \
-        down-prometheus down-grafana down-loki down-promtail down-alertmanager \
-        down-portainer \
+        down-portainer down-caddy \
         down down-all status logs \
         pg-shell redis-cli mongo-shell mysql-shell
 
@@ -25,18 +24,23 @@ help:
 	@echo "  make up-phpmyadmin        启动 phpMyAdmin          :5051"
 	@echo "  make up-mongo-express     启动 Mongo Express       :5052"
 	@echo "  make up-redis-commander   启动 Redis Commander     :5053"
-	@echo "  make up-prometheus        启动 Prometheus          :9090"
-	@echo "  make up-grafana           启动 Grafana             :9091"
-	@echo "  make up-loki              启动 Loki                :3100"
-	@echo "  make up-promtail          启动 Promtail            :9080"
-	@echo "  make up-alertmanager      启动 Alertmanager        :9093"
-	@echo "  make up-portainer         启动 Portainer           :9000"
+	@echo "  make up-minio             启动 MinIO               :9200 (API) :9201 (Console)
+  make up-portainer         启动 Portainer           :9000"
+	@echo "  make up-caddy             启动 Caddy (HTTPS localhost)"
+	@echo "  make caddy-trust          安装本地 CA 到系统信任库（首次使用）"
+	@echo "  make caddy-reload         热重载 Caddy 配置（无需重启）"
+	@echo ""
+	@echo "数据库备份 (ofelia + smart-backup-db):"
+	@echo "  make up-backup            启动 ofelia + 注册备份容器"
+	@echo "  make backup-build         重建备份镜像"
+	@echo "  make backup-run           手动触发一次备份"
+	@echo "  make backup-logs          查看最近一次备份日志"
+	@echo "  make down-backup          停止 ofelia + 备份容器"
 	@echo ""
 	@echo "单个服务停止 (down-<服务>):"
 	@echo "  make down-postgres / down-redis / down-mongodb / down-mysql"
 	@echo "  make down-pgadmin / down-phpmyadmin / down-mongo-express / down-redis-commander"
-	@echo "  make down-prometheus / down-grafana / down-loki / down-promtail / down-alertmanager"
-	@echo "  make down-portainer"
+	@echo "  make down-portainer / down-caddy"
 	@echo ""
 	@echo "环境安装:"
 	@echo "  make install          一键安装 Docker 及所有依赖"
@@ -74,6 +78,12 @@ up-mongodb:
 up-mysql:
 	$(COMPOSE) --profile mysql up -d mysql
 
+up-minio:
+	$(COMPOSE) --profile minio up -d minio
+
+down-minio:
+	docker stop infra-minio && docker rm infra-minio
+
 up-pgadmin:
 	$(COMPOSE) --profile postgres --profile admin up -d pgadmin
 
@@ -86,23 +96,37 @@ up-mongo-express:
 up-redis-commander:
 	$(COMPOSE) --profile redis --profile admin up -d redis-commander
 
-up-prometheus:
-	$(COMPOSE) --profile monitoring up -d prometheus
-
-up-grafana:
-	$(COMPOSE) --profile monitoring up -d prometheus grafana
-
-up-loki:
-	$(COMPOSE) --profile monitoring up -d loki
-
-up-promtail:
-	$(COMPOSE) --profile monitoring up -d loki promtail
-
-up-alertmanager:
-	$(COMPOSE) --profile monitoring up -d alertmanager
-
 up-portainer:
 	$(COMPOSE) --profile portainer up -d portainer
+
+up-caddy:
+	$(COMPOSE) --profile caddy up -d caddy
+
+down-caddy:
+	docker stop infra-caddy && docker rm infra-caddy
+
+caddy-trust:
+	docker exec infra-caddy caddy trust
+
+caddy-reload:
+	docker exec infra-caddy caddy reload --config /etc/caddy/Caddyfile
+
+# --- Backup stack ---
+
+up-backup:
+	$(COMPOSE) --profile backup up -d
+
+backup-build:
+	$(COMPOSE) --profile backup build smart-backup-db
+
+backup-run:
+	docker exec infra-smart-backup /opt/smart-backup-db/backup.sh
+
+backup-logs:
+	docker exec infra-smart-backup tail -n 200 /var/log/smart-backup-db/log.txt
+
+down-backup:
+	$(COMPOSE) --profile backup down
 
 down-postgres:
 	docker stop infra-postgres && docker rm infra-postgres
@@ -128,31 +152,16 @@ down-mongo-express:
 down-redis-commander:
 	docker stop infra-redis-commander && docker rm infra-redis-commander
 
-down-prometheus:
-	docker stop infra-prometheus && docker rm infra-prometheus
-
-down-grafana:
-	docker stop infra-grafana && docker rm infra-grafana
-
-down-loki:
-	docker stop infra-loki && docker rm infra-loki
-
-down-promtail:
-	docker stop infra-promtail && docker rm infra-promtail
-
-down-alertmanager:
-	docker stop infra-alertmanager && docker rm infra-alertmanager
-
 down-portainer:
 	docker stop infra-portainer && docker rm infra-portainer
 
 down:
-	$(COMPOSE) --profile postgres --profile redis --profile mongodb --profile mysql --profile admin --profile monitoring --profile portainer down
+	$(COMPOSE) --profile postgres --profile redis --profile mongodb --profile mysql --profile minio --profile admin --profile portainer --profile backup --profile caddy down
 
 down-all:
 	@echo "警告: 这将删除所有数据! 按 Ctrl+C 取消，或等待 5 秒继续..."
 	@sleep 5
-	$(COMPOSE) --profile postgres --profile redis --profile mongodb --profile mysql --profile admin --profile monitoring --profile portainer down -v
+	$(COMPOSE) --profile postgres --profile redis --profile mongodb --profile mysql --profile minio --profile admin --profile portainer --profile backup --profile caddy down -v
 
 status:
 	$(COMPOSE) ps

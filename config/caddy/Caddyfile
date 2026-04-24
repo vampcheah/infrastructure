@@ -1,0 +1,31 @@
+# =================================================================
+# 002_infrastructure · Caddy Reverse Proxy
+#
+# network_mode: host → localhost 指向宿主机本身
+# Caddy 首次启动会自动生成本地 CA 并尝试安装到系统信任库
+# 若浏览器报不信任，运行: make caddy-trust
+# =================================================================
+
+{
+    # 仅允许本地访问 admin API
+    admin localhost:2019
+}
+
+# -----------------------------------------------------------------
+# agent-spark (027)
+# API  → localhost:3000  (cargo run / make dev-start)
+# Web  → localhost:5173  (npm run dev / make dev-start)
+# -----------------------------------------------------------------
+localhost {
+    reverse_proxy /api/* localhost:3000
+    reverse_proxy * localhost:5173
+}
+
+# -----------------------------------------------------------------
+# 新项目模板（复制并取消注释）
+#
+# <project>.localhost {
+#     reverse_proxy /api/* localhost:<api-port>
+#     reverse_proxy * localhost:<frontend-port>
+# }
+# -----------------------------------------------------------------

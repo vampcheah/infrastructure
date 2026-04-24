@@ -1,0 +1,14 @@
+# Runtime/user content — must be mounted, not baked in
+config.sh
+credentials/
+backups/
+logs/
+
+# Host-only tools and docs not needed inside the image
+install.sh
+README.md
+*.md
+
+# VCS
+.git/
+.gitignore
