@@ -24,8 +24,8 @@ help:
 	@echo "  make up-phpmyadmin        启动 phpMyAdmin          :5051"
 	@echo "  make up-mongo-express     启动 Mongo Express       :5052"
 	@echo "  make up-redis-commander   启动 Redis Commander     :5053"
-	@echo "  make up-minio             启动 MinIO               :9200 (API) :9201 (Console)
-  make up-portainer         启动 Portainer           :9000"
+	@echo "  make up-minio             启动 MinIO               :9200 (API) :9201 (Console)"
+	@echo "  make up-portainer         启动 Portainer           :9000"
 	@echo "  make up-caddy             启动 Caddy (HTTPS localhost)"
 	@echo "  make caddy-trust          安装本地 CA 到系统信任库（首次使用）"
 	@echo "  make caddy-reload         热重载 Caddy 配置（无需重启）"
