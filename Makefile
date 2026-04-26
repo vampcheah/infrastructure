@@ -1,9 +1,9 @@
 .PHONY: help install \
-        up-postgres up-redis up-mongodb up-mysql up-minio \
+        up-postgres up-redis up-mongodb up-mysql up-rustfs \
         up-pgadmin up-phpmyadmin up-mongo-express up-redis-commander \
         up-portainer up-caddy caddy-trust caddy-reload \
         up-backup backup-build backup-run backup-logs down-backup \
-        down-postgres down-redis down-mongodb down-mysql down-minio \
+        down-postgres down-redis down-mongodb down-mysql down-rustfs \
         down-pgadmin down-phpmyadmin down-mongo-express down-redis-commander \
         down-portainer down-caddy \
         down down-all status logs \
@@ -24,8 +24,8 @@ help:
 	@echo "  make up-phpmyadmin        启动 phpMyAdmin          :5051"
 	@echo "  make up-mongo-express     启动 Mongo Express       :5052"
 	@echo "  make up-redis-commander   启动 Redis Commander     :5053"
-	@echo "  make up-minio             启动 MinIO               :9200 (API) :9201 (Console)"
-	@echo "  make up-portainer         启动 Portainer           :9000"
+	@echo "  make up-rustfs            启动 RustFS              :9000 (API) :9001 (Console)"
+	@echo "  make up-portainer         启动 Portainer           :9443"
 	@echo "  make up-caddy             启动 Caddy (HTTPS localhost)"
 	@echo "  make caddy-trust          安装本地 CA 到系统信任库（首次使用）"
 	@echo "  make caddy-reload         热重载 Caddy 配置（无需重启）"
@@ -78,11 +78,11 @@ up-mongodb:
 up-mysql:
 	$(COMPOSE) --profile mysql up -d mysql
 
-up-minio:
-	$(COMPOSE) --profile minio up -d minio
+up-rustfs:
+	$(COMPOSE) --profile rustfs up -d rustfs
 
-down-minio:
-	docker stop infra-minio && docker rm infra-minio
+down-rustfs:
+	docker stop infra-rustfs && docker rm infra-rustfs
 
 up-pgadmin:
 	$(COMPOSE) --profile postgres --profile admin up -d pgadmin
@@ -156,12 +156,12 @@ down-portainer:
 	docker stop infra-portainer && docker rm infra-portainer
 
 down:
-	$(COMPOSE) --profile postgres --profile redis --profile mongodb --profile mysql --profile minio --profile admin --profile portainer --profile backup --profile caddy down
+	$(COMPOSE) --profile postgres --profile redis --profile mongodb --profile mysql --profile rustfs --profile admin --profile portainer --profile backup --profile caddy down
 
 down-all:
 	@echo "警告: 这将删除所有数据! 按 Ctrl+C 取消，或等待 5 秒继续..."
 	@sleep 5
-	$(COMPOSE) --profile postgres --profile redis --profile mongodb --profile mysql --profile minio --profile admin --profile portainer --profile backup --profile caddy down -v
+	$(COMPOSE) --profile postgres --profile redis --profile mongodb --profile mysql --profile rustfs --profile admin --profile portainer --profile backup --profile caddy down -v
 
 status:
 	$(COMPOSE) ps

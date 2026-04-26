@@ -10,16 +10,12 @@
 | 数据库   | Redis                    | 6379     |
 | 数据库   | MongoDB                  | 27017    |
 | 数据库   | MySQL                    | 3306     |
+| 对象存储 | RustFS                   | 9000     |
 | 管理界面 | pgAdmin                  | 5050     |
 | 管理界面 | phpMyAdmin               | 5051     |
 | 管理界面 | Mongo Express            | 5052     |
 | 管理界面 | Redis Commander          | 5053     |
-| 容器管理 | Portainer                | 9000     |
-| 监控     | Prometheus               | 9090     |
-| 监控     | Grafana                  | 9091     |
-| 监控     | Loki                     | 3100     |
-| 监控     | Promtail                 | 9080     |
-| 监控     | Alertmanager             | 9093     |
+| 容器管理 | Portainer                | 9443     |
 
 ## 首次安装
 
