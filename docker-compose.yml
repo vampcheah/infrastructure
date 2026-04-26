@@ -227,7 +227,7 @@ services:
     container_name: infra-portainer
     restart: unless-stopped
     ports:
-      - "${PORTAINER_PORT:-9002}:9000"
+      - "${PORTAINER_PORT:-9990}:9000"
     depends_on:
       - caddy
     volumes:

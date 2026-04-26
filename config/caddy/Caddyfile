@@ -34,5 +34,5 @@ localhost {
 # Portainer (002)
 # -----------------------------------------------------------------
 portainer.localhost {
-    reverse_proxy localhost:9002
+    reverse_proxy localhost:9990
 }
