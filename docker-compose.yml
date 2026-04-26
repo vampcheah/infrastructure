@@ -216,6 +216,7 @@ services:
       - infra_caddy_config:/config
     profiles:
       - caddy
+      - portainer
 
   # ==============================================================
   # CONTAINER MANAGEMENT
@@ -226,7 +227,9 @@ services:
     container_name: infra-portainer
     restart: unless-stopped
     ports:
-      - "${PORTAINER_PORT:-9443}:9443"
+      - "${PORTAINER_PORT:-9002}:9000"
+    depends_on:
+      - caddy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - infra_portainer_data:/data

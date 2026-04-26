@@ -25,7 +25,7 @@ help:
 	@echo "  make up-mongo-express     启动 Mongo Express       :5052"
 	@echo "  make up-redis-commander   启动 Redis Commander     :5053"
 	@echo "  make up-rustfs            启动 RustFS              :9000 (API) :9001 (Console)"
-	@echo "  make up-portainer         启动 Portainer           :9443"
+	@echo "  make up-portainer         启动 Portainer           https://portainer.localhost"
 	@echo "  make up-caddy             启动 Caddy (HTTPS localhost)"
 	@echo "  make caddy-trust          安装本地 CA 到系统信任库（首次使用）"
 	@echo "  make caddy-reload         热重载 Caddy 配置（无需重启）"
@@ -106,8 +106,25 @@ down-caddy:
 	docker stop infra-caddy && docker rm infra-caddy
 
 caddy-trust:
-	docker exec infra-caddy caddy trust
-
+	@mkdir -p ./data/ssl-cert
+	@docker cp infra-caddy:/data/caddy/pki/authorities/local/root.crt ./data/ssl-cert/caddy-root.crt || (echo "Caddy container is not running or cert not found." && exit 1)
+	@echo "正在尝试将证书安装到当前 Linux 服务器的系统信任库 (需要 sudo 权限)..."
+	@if [ -d "/usr/local/share/ca-certificates" ]; then \
+		sudo cp ./data/ssl-cert/caddy-root.crt /usr/local/share/ca-certificates/caddy-local-ca.crt && \
+		sudo update-ca-certificates; \
+	elif [ -d "/etc/pki/ca-trust/source/anchors" ]; then \
+		sudo cp ./data/ssl-cert/caddy-root.crt /etc/pki/ca-trust/source/anchors/caddy-local-ca.crt && \
+		sudo update-ca-trust; \
+	else \
+		echo "【警告】未知的系统 CA 证书路径，未能自动安装到系统。"; \
+	fi
+	@echo "\n======================================================================"
+	@echo "已将 Caddy 根证书导出到目录: ./data/ssl-cert/caddy-root.crt"
+	@echo "当前服务器级别的服务 (如 curl, wget 等) 现在应该已经信任该证书。"
+	@echo "【客户端访问注意】"
+	@echo "如果你用自己的电脑浏览器访问该服务器，或者是在桌面版 Linux 使用 Chrome/Edge："
+	@echo "请将 data/ssl-cert/caddy-root.crt 下载到本机，并手动导入到系统的证书库或浏览器中。"
+	@echo "======================================================================\n"
 caddy-reload:
 	docker exec infra-caddy caddy reload --config /etc/caddy/Caddyfile
 
