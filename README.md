@@ -65,12 +65,7 @@ make up-redis-commander  # Redis 管理界面     → http://localhost:5053
 # 容器管理
 make up-portainer        # Portainer          → http://localhost:9000
 
-# 监控
-make up-prometheus       # Prometheus         → http://localhost:9090
-make up-grafana          # Grafana            → http://localhost:9091
-make up-loki             # Loki
-make up-promtail         # Promtail
-make up-alertmanager     # Alertmanager       → http://localhost:9093
+
 ```
 
 ## 停止服务
@@ -121,4 +116,41 @@ cat .env
 | MongoDB    | admin             | `MONGO_PASSWORD`      |
 | MySQL      | root              | `MYSQL_ROOT_PASSWORD` |
 | pgAdmin    | admin@infra.local | `PGADMIN_PASSWORD`    |
-| Grafana    | admin             | `GRAFANA_PASSWORD`    |
+
+
+## 自动化远程部署 (Ansible)
+
+本项目支持通过 Ansible 一键将整个基础设施部署到远程 Linux 服务器。该方式内置了**安全最佳实践**，会专门创建一个隔离的 `infra` 账户用于运行所有容器。
+
+### 部署步骤：
+
+1. **准备环境**：
+   在你的**本地控制机**（比如你的笔记本）上安装 Ansible：
+   ```bash
+   # Ubuntu/Debian
+   sudo apt update && sudo apt install ansible rsync -y
+   # macOS
+   brew install ansible
+   ```
+
+2. **配置服务器信息**：
+   编辑 `ansible/inventory/hosts.ini`，填入目标服务器的 IP、用户和 SSH 密钥。
+   ```ini
+   [infrastructure]
+   prod_server ansible_host=YOUR_SERVER_IP ansible_user=root ansible_ssh_private_key_file=~/.ssh/id_rsa
+   ```
+
+3. **执行部署**：
+   进入 `ansible/` 目录：
+   ```bash
+   cd ansible/
+   
+   # 步骤一：初始化服务器（安装 Docker、创建隔离的 infra 用户）
+   ansible-playbook playbooks/setup_server.yml
+   
+   # 步骤二：同步代码并启动基础架构
+   ansible-playbook playbooks/deploy_infra.yml
+   ```
+   *注意：如果目标服务器是首次部署，脚本会自动帮你生成所有数据库的随机强密码，保存在远端的 `.env` 中。*
+
+想了解更详细的原理和说明，请查看 [ansible/README.md](./ansible/README.md)。

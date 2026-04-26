@@ -1,0 +1,73 @@
+---
+- name: 部署基础设施 (002_infrastructure)
+  hosts: infrastructure
+  become: yes
+  vars:
+    # 自动生成 12 位 16 进制随机密码的 python 语句 (对应 openssl rand -hex 12)
+    rand_pwd: "{{ lookup('password', '/dev/null chars=ascii_letters,digits length=24') }}"
+    
+  tasks:
+    - name: 确保目标部署目录存在
+      file:
+        path: "{{ project_dest }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+
+    - name: 同步本地项目文件到服务器
+      synchronize:
+        src: "../../"  # playbook 所在的上一层的上一层，即 002_infrastructure 根目录
+        dest: "{{ project_dest }}/"
+        delete: no     # 不删除远端已有但本地没有的文件
+        rsync_opts:
+          - "--exclude=.git/"
+          - "--exclude=ansible/"
+          - "--exclude=.env" # 避免覆盖远端的 env
+          - "--exclude=data/smart-backup-db/backups/"
+          - "--exclude=data/ssl-cert/"
+          - "--chown={{ deploy_user }}:{{ deploy_user }}"
+
+    - name: 检查远端是否存在 .env 文件
+      stat:
+        path: "{{ project_dest }}/.env"
+      register: env_file
+
+    - name: 如果远端没有 .env，则复制 .env.example
+      copy:
+        src: "{{ project_dest }}/.env.example"
+        dest: "{{ project_dest }}/.env"
+        remote_src: yes
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+      when: not env_file.stat.exists
+
+    - name: 为 .env 生成随机密码 (仅首次)
+      replace:
+        path: "{{ project_dest }}/.env"
+        regexp: '^{{ item }}=.*'
+        replace: '{{ item }}={{ lookup("password", "/dev/null chars=ascii_letters,digits length=24") }}'
+      loop:
+        - POSTGRES_PASSWORD
+        - REDIS_PASSWORD
+        - MONGO_PASSWORD
+        - MYSQL_ROOT_PASSWORD
+        - PGADMIN_PASSWORD
+      when: not env_file.stat.exists
+
+    - name: 拉起 Portainer 等基础服务 (根据需要可更改为 make up 或其他指令)
+      command: make up-portainer
+      args:
+        chdir: "{{ project_dest }}"
+      become_user: "{{ deploy_user }}"
+      register: make_up
+      changed_when: "'Running' in make_up.stdout or 'Started' in make_up.stdout"
+
+    - name: 自动配置本地证书信任 (caddy-trust)
+      command: make caddy-trust
+      args:
+        chdir: "{{ project_dest }}"
+      become_user: "{{ deploy_user }}"
+      register: caddy_trust
+      changed_when: false
+      failed_when: false # 即使失败也不中断部署

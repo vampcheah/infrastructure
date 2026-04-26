@@ -1,0 +1,98 @@
+---
+- name: 初始化基础服务器环境并安装 Docker
+  hosts: infrastructure
+  become: yes
+  vars:
+    # 兼容 setup.sh 中的版本要求
+    docker_compose_plugin_min_version: "2.20"
+  
+  tasks:
+    - name: 更新 apt 缓存
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: 安装基础依赖
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - make
+          - gnupg
+          - lsb-release
+          - ca-certificates
+          - apt-transport-https
+          - software-properties-common
+          - jq
+          - rsync
+        state: present
+
+    - name: 检查是否已安装 Docker
+      command: docker --version
+      register: docker_check
+      failed_when: false
+      changed_when: false
+
+    - name: 安装 Docker 官方 GPG 密钥
+      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+      args:
+        creates: /etc/apt/keyrings/docker.gpg
+      when: docker_check.rc != 0
+
+    - name: 确保密钥文件权限正确
+      file:
+        path: /etc/apt/keyrings/docker.gpg
+        mode: '0644'
+      when: docker_check.rc != 0
+
+    - name: 获取 Ubuntu 发行版代号
+      command: lsb_release -cs
+      register: ubuntu_codename
+      changed_when: false
+
+    - name: 添加 Docker 官方 apt 仓库
+      apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ubuntu_codename.stdout }} stable"
+        state: present
+        filename: docker
+      when: docker_check.rc != 0
+
+    - name: 安装 Docker CE 和相关组件
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+      when: docker_check.rc != 0
+
+    - name: 确保 Docker 服务正在运行并开机自启
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: 创建隔离基础设施专用的执行用户 ({{ deploy_user }})
+      user:
+        name: "{{ deploy_user }}"
+        create_home: yes
+        shell: /bin/bash
+        state: present
+
+    - name: 将隔离用户加入 docker 组
+      user:
+        name: "{{ deploy_user }}"
+        groups: docker
+        append: yes
+
+    - name: 为隔离用户配置特定的免密 sudo 权限 (用于 Caddy 证书安装等)
+      copy:
+        dest: "/etc/sudoers.d/{{ deploy_user }}_infra"
+        content: |
+          {{ deploy_user }} ALL=(ALL) NOPASSWD: ALL
+        mode: '0440'
+        validate: 'visudo -cf %s'

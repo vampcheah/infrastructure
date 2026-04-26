@@ -197,13 +197,13 @@ setup_project() {
         cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
         log_info "正在为各服务生成随机密码..."
 
-        local pw_postgres pw_redis pw_mongo pw_mysql pw_pgadmin pw_grafana
+        local pw_postgres pw_redis pw_mongo pw_mysql pw_pgadmin
         pw_postgres="$(gen_password)"
         pw_redis="$(gen_password)"
         pw_mongo="$(gen_password)"
         pw_mysql="$(gen_password)"
         pw_pgadmin="$(gen_password)"
-        pw_grafana="$(gen_password)"
+
 
         # 替换 .env 中的默认密码
         sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${pw_postgres}|" "$SCRIPT_DIR/.env"
@@ -211,7 +211,7 @@ setup_project() {
         sed -i "s|^MONGO_PASSWORD=.*|MONGO_PASSWORD=${pw_mongo}|"          "$SCRIPT_DIR/.env"
         sed -i "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=${pw_mysql}|" "$SCRIPT_DIR/.env"
         sed -i "s|^PGADMIN_PASSWORD=.*|PGADMIN_PASSWORD=${pw_pgadmin}|"    "$SCRIPT_DIR/.env"
-        sed -i "s|^GRAFANA_PASSWORD=.*|GRAFANA_PASSWORD=${pw_grafana}|"    "$SCRIPT_DIR/.env"
+
 
         log_success "已从 .env.example 生成 .env 文件（含随机密码）"
     else
