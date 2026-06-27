@@ -7,7 +7,7 @@
         down-pgadmin down-phpmyadmin down-mongo-express down-redis-commander \
         down-portainer down-caddy \
         down down-all status logs \
-        pg-shell redis-cli mongo-shell mysql-shell
+        pg-shell pg-enable-vector redis-cli mongo-shell mysql-shell
 
 COMPOSE := docker compose
 
@@ -53,6 +53,7 @@ help:
 	@echo ""
 	@echo "数据库 Shell:"
 	@echo "  make pg-shell         进入 PostgreSQL 命令行"
+	@echo "  make pg-enable-vector DB=<db>  为已有 PostgreSQL 数据库启用 pgvector"
 	@echo "  make redis-cli        进入 Redis 命令行"
 	@echo "  make mongo-shell      进入 MongoDB 命令行"
 	@echo "  make mysql-shell      进入 MySQL 命令行"
@@ -190,6 +191,13 @@ logs:
 
 pg-shell:
 	docker exec -it infra-postgres psql -U $${POSTGRES_USER:-postgres}
+
+pg-enable-vector:
+	@if [ -z "$${DB:-}" ]; then \
+		echo 'Usage: make pg-enable-vector DB=<database>'; \
+		exit 1; \
+	fi
+	docker exec -i infra-postgres psql -U $${POSTGRES_USER:-postgres} -d "$${DB}" -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
 redis-cli:
 	docker exec -it infra-redis redis-cli

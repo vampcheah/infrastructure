@@ -6,7 +6,7 @@
 
 | 类别     | 服务                     | 默认端口 |
 | -------- | ------------------------ | -------- |
-| 数据库   | PostgreSQL (TimescaleDB) | 5432     |
+| 数据库   | PostgreSQL (TimescaleDB + pgvector) | 5432     |
 | 数据库   | Redis                    | 6379     |
 | 数据库   | MongoDB                  | 27017    |
 | 数据库   | MySQL                    | 3306     |
@@ -89,9 +89,16 @@ make down-all
 
 ```bash
 make pg-shell      # 进入 PostgreSQL 命令行
+make pg-enable-vector DB=your_database  # 为已有数据库启用 pgvector
 make redis-cli     # 进入 Redis 命令行
 make mongo-shell   # 进入 MongoDB 命令行
 make mysql-shell   # 进入 MySQL 命令行
+```
+
+PostgreSQL 镜像基于 `${POSTGRES_BASE_IMAGE:-timescale/timescaledb:latest-pg16}` 构建，并安装 pgvector。首次初始化时会在默认数据库和 `template1` 中执行 `CREATE EXTENSION IF NOT EXISTS vector;`，之后新建数据库会默认具备 pgvector extension。已有数据卷不会重跑初始化脚本，需要手动执行：
+
+```bash
+make pg-enable-vector DB=your_database
 ```
 
 ## 查看状态和日志

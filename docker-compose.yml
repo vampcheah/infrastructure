@@ -5,7 +5,12 @@ services:
   # ==============================================================
 
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    build:
+      context: .
+      dockerfile: config/postgres-pgvector/Dockerfile
+      args:
+        TIMESCALEDB_IMAGE: ${POSTGRES_BASE_IMAGE:-timescale/timescaledb:latest-pg16}
+    image: infra-postgres-pgvector:pg16
     container_name: infra-postgres
     restart: unless-stopped
     shm_size: '256mb'
@@ -14,7 +19,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - infra_postgres_data:/var/lib/postgresql/data
       - ./init/postgres:/docker-entrypoint-initdb.d:ro
@@ -51,11 +56,11 @@ services:
         fi
       "
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - infra_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} --no-auth-warning ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,7 +79,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin}
     command: mongod --auth
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
     volumes:
       - infra_mongodb_data:/data/db
       - infra_mongodb_config:/data/configdb
@@ -99,7 +104,7 @@ services:
       MYSQL_CHARSET: utf8mb4
       MYSQL_COLLATION: utf8mb4_unicode_ci
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
       - infra_mysql_data:/var/lib/mysql
       - ./init/mysql:/docker-entrypoint-initdb.d:ro
@@ -118,8 +123,8 @@ services:
     image: rustfs/rustfs:latest
     container_name: infra-rustfs
     ports:
-      - "${RUSTFS_PORT:-9000}:9000"
-      - "${RUSTFS_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${RUSTFS_PORT:-9000}:9000"
+      - "127.0.0.1:${RUSTFS_CONSOLE_PORT:-9001}:9001"
     volumes:
       - infra_rustfs_data:/data
     restart: unless-stopped
@@ -144,7 +149,7 @@ services:
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
     volumes:
       - infra_pgadmin_data:/var/lib/pgadmin
       - ./config/pgadmin/servers.json:/pgadmin4/servers.json:ro
@@ -163,7 +168,7 @@ services:
       PMA_PORT: 3306
       UPLOAD_LIMIT: 256M
     ports:
-      - "${PHPMYADMIN_PORT:-5051}:80"
+      - "127.0.0.1:${PHPMYADMIN_PORT:-5051}:80"
     networks:
       - infra_shared
     profiles:
@@ -179,7 +184,7 @@ services:
       ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-admin}@infra-mongodb:27017/
       ME_CONFIG_BASICAUTH: "false"
     ports:
-      - "${MONGO_EXPRESS_PORT:-5052}:8081"
+      - "127.0.0.1:${MONGO_EXPRESS_PORT:-5052}:8081"
     networks:
       - infra_shared
     profiles:
@@ -192,7 +197,7 @@ services:
     environment:
       REDIS_HOSTS: local:infra-redis:6379:0${REDIS_PASSWORD:+:${REDIS_PASSWORD}}
     ports:
-      - "${REDIS_COMMANDER_PORT:-5053}:8081"
+      - "127.0.0.1:${REDIS_COMMANDER_PORT:-5053}:8081"
     networks:
       - infra_shared
     profiles:
@@ -214,6 +219,10 @@ services:
       - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - infra_caddy_data:/data
       - infra_caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # 必须包含，用于 HTTP/3
     profiles:
       - caddy
       - portainer
@@ -227,7 +236,7 @@ services:
     container_name: infra-portainer
     restart: unless-stopped
     ports:
-      - "${PORTAINER_PORT:-9990}:9000"
+      - "127.0.0.1:${PORTAINER_PORT:-9990}:9000"
     depends_on:
       - caddy
     volumes:
