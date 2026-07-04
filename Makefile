@@ -207,3 +207,10 @@ mongo-shell:
 
 mysql-shell:
 	docker exec -it infra-mysql mysql -u root -p$${MYSQL_ROOT_PASSWORD:-root}
+
+up-taskride:
+	$(COMPOSE) --profile taskride pull taskride-api
+	$(COMPOSE) --profile taskride up -d taskride-api
+
+down-taskride:
+	$(COMPOSE) --profile taskride stop taskride-api

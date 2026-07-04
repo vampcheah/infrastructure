@@ -298,6 +298,22 @@ services:
 # ==============================================================
 # NETWORKS
 # ==============================================================
+  # ==============================================================
+  # TaskRide API (039_taskcab) — 镜像由该仓库 CI 推 GHCR
+  # 用法: make up-taskride  （需先 up-postgres up-redis up-rustfs）
+  # network_mode: host → DATABASE_URL/REDIS_URL 用 localhost
+  # ==============================================================
+  taskride-api:
+    image: ghcr.io/francisxiaobu/039_taskcab/taskride-server:latest
+    container_name: taskride-api
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - path: ./config/taskride/api.env
+        required: false # 部署时从 api.env.example 复制
+    profiles:
+      - taskride
+
 networks:
   infra_shared:
     name: infra_shared
@@ -306,6 +322,8 @@ networks:
 # ==============================================================
 # VOLUMES
 # ==============================================================
+
+
 volumes:
   infra_rustfs_data:
   infra_postgres_data:
