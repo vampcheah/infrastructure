@@ -122,6 +122,10 @@ services:
   rustfs:
     image: rustfs/rustfs:latest
     container_name: infra-rustfs
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+      RUSTFS_CONSOLE_ENABLE: "true"
     ports:
       - "127.0.0.1:${RUSTFS_PORT:-9000}:9000"
       - "127.0.0.1:${RUSTFS_CONSOLE_PORT:-9001}:9001"
