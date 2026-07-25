@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# 002_infrastructure - Ubuntu 环境安装脚本
+# infrastructure - Ubuntu 环境安装脚本
 #
 # 用法: chmod +x setup.sh && ./setup.sh
 #       或: make install
@@ -308,7 +308,7 @@ verify_installation() {
 
 main() {
     echo ""
-    log_info "开始 002_infrastructure 环境配置..."
+    log_info "开始 infrastructure 环境配置..."
 
     NEED_RELOGIN=false
 
