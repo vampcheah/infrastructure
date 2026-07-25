@@ -220,34 +220,31 @@ setup_project() {
         log_success ".env 文件已存在，检查并补全配置项..."
     fi
 
-    # 确保 RustFS 配置在 .env 的 # --- RustFS --- 模块下且已生成随机密码
+    # 确保 RustFS 配置顺序与 .env.example 一致且已生成随机密码
     if [[ -f "$SCRIPT_DIR/.env" ]]; then
-        if ! grep -q "^RUSTFS_ACCESS_KEY=" "$SCRIPT_DIR/.env"; then
-            if grep -q "^# --- RustFS ---" "$SCRIPT_DIR/.env"; then
-                sed -i "/^# --- RustFS ---/a RUSTFS_ACCESS_KEY=admin" "$SCRIPT_DIR/.env"
-            else
-                echo -e "\n# --- RustFS ---\nRUSTFS_ACCESS_KEY=admin" >> "$SCRIPT_DIR/.env"
-            fi
-            log_info "已在 RustFS 模块下补全 RUSTFS_ACCESS_KEY=admin"
+        local rustfs_access_line rustfs_secret_line
+        rustfs_access_line="$(grep -m1 "^RUSTFS_ACCESS_KEY=" "$SCRIPT_DIR/.env" || true)"
+        rustfs_secret_line="$(grep -m1 "^RUSTFS_SECRET_KEY=" "$SCRIPT_DIR/.env" || true)"
+
+        if [[ -z "$rustfs_access_line" ]]; then
+            rustfs_access_line="RUSTFS_ACCESS_KEY=admin"
         fi
 
-        if ! grep -q "^RUSTFS_SECRET_KEY=" "$SCRIPT_DIR/.env"; then
+        if [[ -z "$rustfs_secret_line" || "$rustfs_secret_line" == "RUSTFS_SECRET_KEY=rustfsadmin" ]]; then
             local pw_rustfs
             pw_rustfs="$(gen_password)"
-            if grep -q "^RUSTFS_ACCESS_KEY=" "$SCRIPT_DIR/.env"; then
-                sed -i "/^RUSTFS_ACCESS_KEY=.*/a RUSTFS_SECRET_KEY=${pw_rustfs}" "$SCRIPT_DIR/.env"
-            elif grep -q "^# --- RustFS ---" "$SCRIPT_DIR/.env"; then
-                sed -i "/^# --- RustFS ---/a RUSTFS_SECRET_KEY=${pw_rustfs}" "$SCRIPT_DIR/.env"
-            else
-                echo "RUSTFS_SECRET_KEY=${pw_rustfs}" >> "$SCRIPT_DIR/.env"
-            fi
-            log_success "已在 RustFS 模块下生成随机密码 (RUSTFS_SECRET_KEY)"
-        elif grep -q "^RUSTFS_SECRET_KEY=rustfsadmin$" "$SCRIPT_DIR/.env"; then
-            local pw_rustfs
-            pw_rustfs="$(gen_password)"
-            sed -i "s|^RUSTFS_SECRET_KEY=rustfsadmin|RUSTFS_SECRET_KEY=${pw_rustfs}|" "$SCRIPT_DIR/.env"
-            log_success "已将 RustFS 默认密码替换为随机强密码"
+            rustfs_secret_line="RUSTFS_SECRET_KEY=${pw_rustfs}"
         fi
+
+        sed -i "/^RUSTFS_ACCESS_KEY=/d; /^RUSTFS_SECRET_KEY=/d" "$SCRIPT_DIR/.env"
+        if grep -q "^# --- RustFS ---" "$SCRIPT_DIR/.env"; then
+            sed -i "/^# --- RustFS ---/a ${rustfs_access_line}\n${rustfs_secret_line}" "$SCRIPT_DIR/.env"
+        elif grep -q "^RUSTFS_PORT=" "$SCRIPT_DIR/.env"; then
+            sed -i "/^RUSTFS_PORT=/i # --- RustFS ---\n${rustfs_access_line}\n${rustfs_secret_line}" "$SCRIPT_DIR/.env"
+        else
+            echo -e "\n# --- RustFS ---\n${rustfs_access_line}\n${rustfs_secret_line}" >> "$SCRIPT_DIR/.env"
+        fi
+        log_success "RustFS 配置已按 .env.example 顺序整理"
     fi
 
     # 验证关键文件
