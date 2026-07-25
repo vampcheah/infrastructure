@@ -220,23 +220,33 @@ setup_project() {
         log_success ".env 文件已存在，检查并补全配置项..."
     fi
 
-    # 确保 RustFS 配置在 .env 中存在且已生成随机密码
+    # 确保 RustFS 配置在 .env 的 # --- RustFS --- 模块下且已生成随机密码
     if [[ -f "$SCRIPT_DIR/.env" ]]; then
         if ! grep -q "^RUSTFS_ACCESS_KEY=" "$SCRIPT_DIR/.env"; then
-            echo "RUSTFS_ACCESS_KEY=admin" >> "$SCRIPT_DIR/.env"
-            log_info "已自动为 RustFS 补全 RUSTFS_ACCESS_KEY=admin"
+            if grep -q "^# --- RustFS ---" "$SCRIPT_DIR/.env"; then
+                sed -i "/^# --- RustFS ---/a RUSTFS_ACCESS_KEY=admin" "$SCRIPT_DIR/.env"
+            else
+                echo -e "\n# --- RustFS ---\nRUSTFS_ACCESS_KEY=admin" >> "$SCRIPT_DIR/.env"
+            fi
+            log_info "已在 RustFS 模块下补全 RUSTFS_ACCESS_KEY=admin"
         fi
 
         if ! grep -q "^RUSTFS_SECRET_KEY=" "$SCRIPT_DIR/.env"; then
             local pw_rustfs
             pw_rustfs="$(gen_password)"
-            echo "RUSTFS_SECRET_KEY=${pw_rustfs}" >> "$SCRIPT_DIR/.env"
-            log_success "已自动为 RustFS 生成随机密码 (RUSTFS_SECRET_KEY)"
+            if grep -q "^RUSTFS_ACCESS_KEY=" "$SCRIPT_DIR/.env"; then
+                sed -i "/^RUSTFS_ACCESS_KEY=.*/a RUSTFS_SECRET_KEY=${pw_rustfs}" "$SCRIPT_DIR/.env"
+            elif grep -q "^# --- RustFS ---" "$SCRIPT_DIR/.env"; then
+                sed -i "/^# --- RustFS ---/a RUSTFS_SECRET_KEY=${pw_rustfs}" "$SCRIPT_DIR/.env"
+            else
+                echo "RUSTFS_SECRET_KEY=${pw_rustfs}" >> "$SCRIPT_DIR/.env"
+            fi
+            log_success "已在 RustFS 模块下生成随机密码 (RUSTFS_SECRET_KEY)"
         elif grep -q "^RUSTFS_SECRET_KEY=rustfsadmin$" "$SCRIPT_DIR/.env"; then
             local pw_rustfs
             pw_rustfs="$(gen_password)"
             sed -i "s|^RUSTFS_SECRET_KEY=rustfsadmin|RUSTFS_SECRET_KEY=${pw_rustfs}|" "$SCRIPT_DIR/.env"
-            log_success "已自动将 RustFS 默认密码替换为随机强密码"
+            log_success "已将 RustFS 默认密码替换为随机强密码"
         fi
     fi
 
