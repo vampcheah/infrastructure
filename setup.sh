@@ -280,7 +280,6 @@ verify_installation() {
 main() {
     echo ""
     log_info "开始 002_infrastructure 环境配置..."
-    echo ""
 
     NEED_RELOGIN=false
 
