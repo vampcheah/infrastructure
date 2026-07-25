@@ -191,31 +191,53 @@ gen_password() {
 setup_project() {
     log_info "初始化项目配置..."
 
-    if [[ -f "$SCRIPT_DIR/.env" ]]; then
-        log_success ".env 文件已存在，跳过"
-    elif [[ -f "$SCRIPT_DIR/.env.example" ]]; then
-        cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
-        log_info "正在为各服务生成随机密码..."
+    if [[ ! -f "$SCRIPT_DIR/.env" ]]; then
+        if [[ -f "$SCRIPT_DIR/.env.example" ]]; then
+            cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+            log_info "正在为各服务生成随机密码..."
 
-        local pw_postgres pw_redis pw_mongo pw_mysql pw_pgadmin pw_rustfs
-        pw_postgres="$(gen_password)"
-        pw_redis="$(gen_password)"
-        pw_mongo="$(gen_password)"
-        pw_mysql="$(gen_password)"
-        pw_pgadmin="$(gen_password)"
-        pw_rustfs="$(gen_password)"
+            local pw_postgres pw_redis pw_mongo pw_mysql pw_pgadmin pw_rustfs
+            pw_postgres="$(gen_password)"
+            pw_redis="$(gen_password)"
+            pw_mongo="$(gen_password)"
+            pw_mysql="$(gen_password)"
+            pw_pgadmin="$(gen_password)"
+            pw_rustfs="$(gen_password)"
 
-        # 替换 .env 中的默认密码
-        sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${pw_postgres}|" "$SCRIPT_DIR/.env"
-        sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=${pw_redis}|"          "$SCRIPT_DIR/.env"
-        sed -i "s|^MONGO_PASSWORD=.*|MONGO_PASSWORD=${pw_mongo}|"          "$SCRIPT_DIR/.env"
-        sed -i "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=${pw_mysql}|" "$SCRIPT_DIR/.env"
-        sed -i "s|^PGADMIN_PASSWORD=.*|PGADMIN_PASSWORD=${pw_pgadmin}|"    "$SCRIPT_DIR/.env"
-        sed -i "s|^RUSTFS_SECRET_KEY=.*|RUSTFS_SECRET_KEY=${pw_rustfs}|"   "$SCRIPT_DIR/.env"
+            # 替换 .env 中的默认密码
+            sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${pw_postgres}|" "$SCRIPT_DIR/.env"
+            sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=${pw_redis}|"          "$SCRIPT_DIR/.env"
+            sed -i "s|^MONGO_PASSWORD=.*|MONGO_PASSWORD=${pw_mongo}|"          "$SCRIPT_DIR/.env"
+            sed -i "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=${pw_mysql}|" "$SCRIPT_DIR/.env"
+            sed -i "s|^PGADMIN_PASSWORD=.*|PGADMIN_PASSWORD=${pw_pgadmin}|"    "$SCRIPT_DIR/.env"
+            sed -i "s|^RUSTFS_SECRET_KEY=.*|RUSTFS_SECRET_KEY=${pw_rustfs}|"   "$SCRIPT_DIR/.env"
 
-        log_success "已从 .env.example 生成 .env 文件（含随机密码）"
+            log_success "已从 .env.example 生成 .env 文件（含随机密码）"
+        else
+            log_warn "未找到 .env.example，请手动创建 .env 文件"
+        fi
     else
-        log_warn "未找到 .env.example，请手动创建 .env 文件"
+        log_success ".env 文件已存在，检查并补全配置项..."
+    fi
+
+    # 确保 RustFS 配置在 .env 中存在且已生成随机密码
+    if [[ -f "$SCRIPT_DIR/.env" ]]; then
+        if ! grep -q "^RUSTFS_ACCESS_KEY=" "$SCRIPT_DIR/.env"; then
+            echo "RUSTFS_ACCESS_KEY=admin" >> "$SCRIPT_DIR/.env"
+            log_info "已自动为 RustFS 补全 RUSTFS_ACCESS_KEY=admin"
+        fi
+
+        if ! grep -q "^RUSTFS_SECRET_KEY=" "$SCRIPT_DIR/.env"; then
+            local pw_rustfs
+            pw_rustfs="$(gen_password)"
+            echo "RUSTFS_SECRET_KEY=${pw_rustfs}" >> "$SCRIPT_DIR/.env"
+            log_success "已自动为 RustFS 生成随机密码 (RUSTFS_SECRET_KEY)"
+        elif grep -q "^RUSTFS_SECRET_KEY=rustfsadmin$" "$SCRIPT_DIR/.env"; then
+            local pw_rustfs
+            pw_rustfs="$(gen_password)"
+            sed -i "s|^RUSTFS_SECRET_KEY=rustfsadmin|RUSTFS_SECRET_KEY=${pw_rustfs}|" "$SCRIPT_DIR/.env"
+            log_success "已自动将 RustFS 默认密码替换为随机强密码"
+        fi
     fi
 
     # 验证关键文件
