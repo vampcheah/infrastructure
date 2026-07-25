@@ -1,4 +1,4 @@
-.PHONY: help install \
+.PHONY: help install reinstall-docker \
         up-postgres up-redis up-mongodb up-mysql up-rustfs \
         up-pgadmin up-phpmyadmin up-mongo-express up-redis-commander \
         up-portainer up-caddy caddy-trust caddy-reload \
@@ -44,6 +44,7 @@ help:
 	@echo ""
 	@echo "环境安装:"
 	@echo "  make install          一键安装 Docker 及所有依赖"
+	@echo "  make reinstall-docker 彻底卸载并重新安装 Docker (危险!)"
 	@echo ""
 	@echo "管理命令:"
 	@echo "  make down             停止并移除所有容器 (保留数据)"
@@ -62,6 +63,10 @@ help:
 install:
 	@chmod +x setup.sh
 	@./setup.sh
+
+reinstall-docker:
+	@chmod +x reinstall-docker.sh
+	@./reinstall-docker.sh
 
 # ==============================================================
 # 单个服务启动 / 停止
