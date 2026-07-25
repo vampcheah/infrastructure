@@ -53,6 +53,7 @@
         - MONGO_PASSWORD
         - MYSQL_ROOT_PASSWORD
         - PGADMIN_PASSWORD
+        - RUSTFS_SECRET_KEY
       when: not env_file.stat.exists
 
     - name: 拉起 Portainer 等基础服务 (根据需要可更改为 make up 或其他指令)

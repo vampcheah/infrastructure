@@ -122,6 +122,7 @@ cat .env
 | Redis      | (无)              | `REDIS_PASSWORD`      |
 | MongoDB    | admin             | `MONGO_PASSWORD`      |
 | MySQL      | root              | `MYSQL_ROOT_PASSWORD` |
+| RustFS     | admin             | `RUSTFS_SECRET_KEY`   |
 | pgAdmin    | admin@infra.local | `PGADMIN_PASSWORD`    |
 
 
