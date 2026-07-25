@@ -229,7 +229,6 @@ services:
       - "443:443/udp" # 必须包含，用于 HTTP/3
     profiles:
       - caddy
-      - portainer
 
   # ==============================================================
   # CONTAINER MANAGEMENT
@@ -241,8 +240,6 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${PORTAINER_PORT:-9990}:9000"
-    depends_on:
-      - caddy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - infra_portainer_data:/data
