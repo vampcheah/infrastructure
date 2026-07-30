@@ -1,4 +1,4 @@
-.PHONY: help install reinstall-docker \
+.PHONY: help install reinstall-docker deploy-omnibos \
         up-postgres up-redis up-mongodb up-mysql up-rustfs \
         up-pgadmin up-phpmyadmin up-mongo-express up-redis-commander \
         up-portainer up-caddy caddy-trust caddy-reload \
@@ -47,6 +47,7 @@ help:
 	@echo "  make reinstall-docker 彻底卸载并重新安装 Docker (危险!)"
 	@echo ""
 	@echo "管理命令:"
+	@echo "  make deploy-omnibos OMNIBOS_SOURCE=/path/to/omnibos"
 	@echo "  make down             停止并移除所有容器 (保留数据)"
 	@echo "  make down-all         停止并移除所有容器和数据 (危险!)"
 	@echo "  make status           查看容器状态"
@@ -59,6 +60,9 @@ help:
 	@echo "  make mongo-shell      进入 MongoDB 命令行"
 	@echo "  make mysql-shell      进入 MySQL 命令行"
 	@echo ""
+
+deploy-omnibos:
+	@OMNIBOS_SOURCE="$(OMNIBOS_SOURCE)" ./scripts/deploy-omnibos.sh
 
 install:
 	@chmod +x setup.sh
